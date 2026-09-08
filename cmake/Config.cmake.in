@@ -1,0 +1,3 @@
+@PACKAGE_INIT@
+
+include( "${CMAKE_CURRENT_LIST_DIR}/@DATA_MODEL_INTERFACE_NAME@Targets.cmake" )
