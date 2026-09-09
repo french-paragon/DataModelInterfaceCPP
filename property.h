@@ -836,8 +836,6 @@ public:
 
     void apply(ChangeRecord const& action); //apply an action that has been recorded, this is meant mainly to implement undo/redo mechanism
 
-    PropertySet* getUnsyncedProxyPropertySet(ChangeTracker* changeTrackParent);
-
     template <typename DT>
     inline ConnectionId connectChangeWatcher(Notifiable& target, DataNotifySlot<DT> const& slot) {
 
