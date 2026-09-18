@@ -105,6 +105,7 @@ void PropertySet::addBlock(std::string const& name, DataStructureBlock* property
         constexpr bool deleteBlock = true;
         clearBlock(name, deleteBlock);
     }
+    _blocks.push_back(property);
     _data[name] = property;
     property->setId(name);
     notifyInserted(name);
@@ -112,9 +113,14 @@ void PropertySet::addBlock(std::string const& name, DataStructureBlock* property
 }
 void PropertySet::clearBlock(std::string const& name, bool deleteBlock) {
     if (_data.count(name) > 0) {
+        DataStructureBlock* block = _data[name];
         notifyClear(name);
         if (deleteBlock) {
-            delete _data[name];
+            delete block;
+        }
+        auto it = std::find(_blocks.begin(), _blocks.end(), block);
+        if (it != _blocks.end()) {
+            _blocks.erase(it);
         }
         _data.erase(name);
         notifyChanges();
@@ -128,6 +134,7 @@ void PropertySet::clear(bool deleteBlock) {
         props.push_back(key);
     }
 
+    _blocks.clear();
     for (std::string const& prop : props) {
         clearBlock(prop, deleteBlock);
     }
@@ -139,8 +146,9 @@ void PropertySet::duplicateTo(PropertySet* other) {
     std::vector<std::string> props;
     props.reserve(_data.size());
 
-    for (auto& [key, val] : _data) {
-        props.push_back(key);
+    //insert the blocks in order
+    for (DataStructureBlock* b : _blocks) {
+        props.push_back(b->id());
     }
 
     for (std::string const& prop : props) {

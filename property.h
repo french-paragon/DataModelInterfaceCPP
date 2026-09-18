@@ -750,20 +750,20 @@ public:
     std::string toJson() const;
     void fromJson(std::string const& jsonData);
 
-    DataStructureBlock* block(std::string const& name) {
+    inline DataStructureBlock* block(std::string const& name) {
         if (_data.count(name) > 0) {
             return _data[name];
         }
         return nullptr;
     }
-    DataStructureBlock const* block(std::string const& name) const {
+    inline DataStructureBlock const* block(std::string const& name) const {
         if (_data.count(name) > 0) {
             return _data.at(name);
         }
         return nullptr;
     }
 
-    DataStructureBlock* block(Url const& url) {
+    inline DataStructureBlock* block(Url const& url) {
         if (url.size() <= 0) {
             return nullptr;
         }
@@ -788,7 +788,7 @@ public:
 
         return set->block(tail,url.size()-1);
     }
-    DataStructureBlock const* subblock(Url const& url) const {
+    inline DataStructureBlock const* subblock(Url const& url) const {
         if (url.size() <= 0) {
             return nullptr;
         }
@@ -813,6 +813,20 @@ public:
 
         return set->block(tail,url.size()-1);
 
+    }
+
+    inline DataStructureBlock* block(int idx) {
+        if (idx < _blocks.size() and idx >= 0) {
+            return _blocks[idx];
+        }
+        return nullptr;
+    }
+
+    inline DataStructureBlock const* block(int idx) const {
+        if (idx < _blocks.size() and idx >= 0) {
+            return _blocks[idx];
+        }
+        return nullptr;
     }
 
     virtual void addBlock(std::string const& name, DataStructureBlock* block);
@@ -1111,6 +1125,7 @@ protected:
         return set->block(tail,count-1);
     }
 
+    std::vector<DataStructureBlock*> _blocks;
     std::map<std::string, DataStructureBlock*> _data;
 
     std::forward_list<ChangeNotifyData> _changeSlots;
