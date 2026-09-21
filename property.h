@@ -806,20 +806,6 @@ public:
 
     }
 
-    inline DataStructureBlock* block(int idx) {
-        if (idx < _blocks.size() and idx >= 0) {
-            return _blocks[idx];
-        }
-        return nullptr;
-    }
-
-    inline DataStructureBlock const* block(int idx) const {
-        if (idx < _blocks.size() and idx >= 0) {
-            return _blocks[idx];
-        }
-        return nullptr;
-    }
-
     virtual void addBlock(std::string const& name, DataStructureBlock* block);
     virtual void clearBlock(std::string const& name, bool deleteBlock = true);
 
@@ -1116,7 +1102,6 @@ protected:
         return set->block(tail,count-1);
     }
 
-    std::vector<DataStructureBlock*> _blocks;
     std::map<std::string, DataStructureBlock*> _data;
 
     std::forward_list<ChangeNotifyData> _changeSlots;
