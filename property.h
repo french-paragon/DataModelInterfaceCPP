@@ -534,15 +534,6 @@ public:
         _slots.remove_if([id] (NotifyData const& data) -> bool {return reinterpret_cast<ConnectionId>(&data) == id;});
     }
 
-    /*!
-     * \brief gives you a Property that is just a proxy of the original property
-     */
-    GenericProperty getProxyProperty(ChangeTracker* changeTrackParent);
-    /*!
-     * \brief gives you a Property that sync with the original, but only when explicitly commited.
-     */
-    GenericProperty getUnsyncedProxyProperty(ChangeTracker* changeTrackParent);
-
 protected:
 
     std::forward_list<NotifyData> _slots;
