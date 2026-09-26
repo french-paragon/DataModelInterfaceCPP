@@ -28,12 +28,12 @@ class ChangeRecorder
 {
 public:
 
-    using CallBack = std::function<void(ChangeRecorder*, ChangeRecord&)>;
-
     struct ChangeRecordInfo {
         std::vector<ChangeRecord> redo;
         std::vector<ChangeRecord> undo;
     };
+
+    using CallBack = std::function<void(ChangeRecorder const*, ChangeRecordInfo const&)>;
 
     explicit ChangeRecorder();
     explicit ChangeRecorder(DataStructureBlock* target);

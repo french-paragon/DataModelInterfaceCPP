@@ -87,6 +87,9 @@ void GenericProperty::notify(const GenericDatum &oldData) {
 
 PropertySet::~PropertySet() {
     for (auto&[key, val] : _data) {
+        if (_unmanagedBlocks.count(val) > 0) {
+            continue; //we do not manage that block
+        }
         delete val;
     }
 }
@@ -96,14 +99,25 @@ DataStructureBlock::Kind PropertySet::dataStructureKind() const {
 }
 
 std::string PropertySet::typeDescr() const {
+    if (_typeInfosHook) {
+        return std::string("set::")+_typeInfosHook();
+    }
     return "set";
 }
 
-void PropertySet::addBlock(std::string const& name, DataStructureBlock* property) {
+void PropertySet::addBlock(std::string const& name, DataStructureBlock* property, bool manageBlock) {
     //TODO: check how to behave when assigning to an already existing property.
     if (_data.count(name) > 0) {
+        if (_data[name] == property) {
+            property->setParent(this);
+            return; //this specific block has already been inserted
+        }
         constexpr bool deleteBlock = true;
         clearBlock(name, deleteBlock);
+    }
+    property->setParent(this);
+    if (!manageBlock) {
+        _unmanagedBlocks.insert(property);
     }
     _data[name] = property;
     property->setId(name);
@@ -115,8 +129,11 @@ void PropertySet::clearBlock(std::string const& name, bool deleteBlock) {
         DataStructureBlock* block = _data[name];
         notifyClear(name);
         if (deleteBlock) {
-            delete block;
+            if (_unmanagedBlocks.count(block) == 0) {
+                delete block; //delete block, but only if we are managing it
+            }
         }
+        _unmanagedBlocks.erase(block);
         _data.erase(name);
         notifyChanges();
     }
@@ -243,6 +260,102 @@ bool PropertySet::isSimilarTo(PropertySet* other) {
 
     return true;
 
+}
+
+PropertySet* PropertySet::buildSubset(std::string const& propName, std::string const& typeHint) {
+
+    if (_data.count(propName) > 0) {
+        DataStructureBlock* child = _data[propName];
+
+        if (child == nullptr) {
+            return nullptr;
+        }
+
+        DataStructureBlock::Kind kind = child->dataStructureKind();
+
+        if (kind == DataStructureBlock::Set) {
+            PropertySet* sub_set = static_cast<PropertySet*>(child);
+            return sub_set;
+        }
+
+        return nullptr;
+    }
+
+    if (_subSetConstructor) {
+        PropertySet* ret = _subSetConstructor(propName, typeHint);
+        if (ret != nullptr) {
+            return ret;
+        }
+    }
+
+    if (typeHint == "set") {
+        return new PropertySet(this);
+    }
+
+    return nullptr;
+
+}
+GenericProperty* PropertySet::buildProperty(std::string const& propName, std::string const& typeHint) {
+    if (_data.count(propName) > 0) {
+
+        DataStructureBlock* child = _data[propName];
+
+        if (child == nullptr) {
+            return nullptr;
+        }
+
+        DataStructureBlock::Kind kind = child->dataStructureKind();
+
+        if (kind == DataStructureBlock::Property) {
+            GenericProperty* prop = static_cast<GenericProperty*>(child);
+            return prop;
+        }
+
+        return nullptr;
+    }
+
+    if (_subPropConstructor) {
+        GenericProperty* ret = _subPropConstructor(propName, typeHint);
+        if (ret != nullptr) {
+            return ret;
+        }
+    }
+
+    if (typeHint == "i8") {
+        return new DataModelInterface::Property<int8_t>(this);
+    }
+    if (typeHint == "u8") {
+        return new DataModelInterface::Property<uint8_t>(this);
+    }
+    if (typeHint == "i16") {
+        return new DataModelInterface::Property<int16_t>(this);
+    }
+    if (typeHint == "u16") {
+        return new DataModelInterface::Property<uint16_t>(this);
+    }
+    if (typeHint == "i32") {
+        return new DataModelInterface::Property<int32_t>(this);
+    }
+    if (typeHint == "u32") {
+        return new DataModelInterface::Property<uint32_t>(this);
+    }
+    if (typeHint == "i64") {
+        return new DataModelInterface::Property<int64_t>(this);
+    }
+    if (typeHint == "u64") {
+        return new DataModelInterface::Property<uint64_t>(this);
+    }
+    if (typeHint == "f") {
+        return new DataModelInterface::Property<float>(this);
+    }
+    if (typeHint == "d") {
+        return new DataModelInterface::Property<double>(this);
+    }
+    if (typeHint == "str") {
+        return new DataModelInterface::Property<std::string>(this);
+    }
+
+    return nullptr;
 }
 
 std::string PropertySet::urlEncode(Url const& url) {

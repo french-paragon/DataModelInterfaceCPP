@@ -66,6 +66,8 @@ enable_testing()
 add_executable(
   data_model_interface_test
   test.cpp
+  test_internal/generictestdatastructure.h
+  test_internal/generictestdatastructure.cpp
 )
 target_link_libraries(
   data_model_interface_test

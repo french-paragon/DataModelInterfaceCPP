@@ -130,6 +130,12 @@ void ChangeRecorder::addRecord(ChangeRecordInfo const& record) {
         _recordedChanges.pop_front();
     }
 
+    for (CallBack* callback_ptr : _callBacks) {
+        CallBack & callBack = *callback_ptr;
+        if (callBack) {
+            callBack(this, record);
+        }
+    }
     _recordedChanges.push_back(record);
 
 }
@@ -137,7 +143,8 @@ void ChangeRecorder::addRecord(ChangeRecordInfo const& record) {
 std::vector<ChangeRecord> ChangeRecorder::blockCreationRecord(PropertySet::Url const& url, std::string const& blockRef, DataStructureBlock const* block) {
 
     std::vector<ChangeRecord> ret;
-    ret.push_back(ChangeRecord{.url=url, .index=blockRef, .action=ChangeRecord::Insert, .dataRep=block->typeDescr()});
+    auto typeDescr = block->typeDescr();
+    ret.push_back(ChangeRecord{.url=url, .index=blockRef, .action=ChangeRecord::Insert, .dataRep=typeDescr});
 
     DataStructureBlock::Kind kind = block->dataStructureKind();
 

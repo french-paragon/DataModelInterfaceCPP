@@ -23,6 +23,7 @@
 #include <string>
 #include <sstream>
 #include <map>
+#include <set>
 
 namespace DataModelInterface {
 
@@ -241,7 +242,7 @@ public:
     virtual void commit();
     virtual bool hasUncommitedChanges();
 
-    inline std::string const& id() {
+    inline std::string const& id() const {
         return _id;
     }
 
@@ -258,6 +259,10 @@ public:
         url.push_back(_id);
 
         return url;
+    }
+
+    void setParent(DataStructureBlock* parent) {
+        _parent = parent;
     }
 
 protected:
@@ -662,6 +667,10 @@ class PropertySet : public DataStructureBlock {
 
 public:
 
+    using SubSetConstructorHook = std::function<PropertySet*(std::string const& keyName, std::string const& setTypeHint)>;
+    using PropertyConstructorHook = std::function<GenericProperty*(std::string const& keyName, std::string const& setTypeHint)>;
+    using TypeInfosHook = std::function<std::string ()>;
+
     using NotifySlot = std::function<void(Url const&, DataStructureBlock const*)>;
     template<typename DT>
     using DataNotifySlot = std::function<void(Url const&, DT const& propData)>;
@@ -809,7 +818,7 @@ public:
 
     }
 
-    virtual void addBlock(std::string const& name, DataStructureBlock* block);
+    virtual void addBlock(std::string const& name, DataStructureBlock* block, bool manageBlock = true);
     virtual void clearBlock(std::string const& name, bool deleteBlock = true);
 
     void clear(bool deleteBlock = true);
@@ -828,7 +837,34 @@ public:
      */
     bool isSimilarTo(PropertySet* other);
 
-    void apply(ChangeRecord const& action); //apply an action that has been recorded, this is meant mainly to implement undo/redo mechanism
+    inline void setSubSetConstructorHook(SubSetConstructorHook const& hook) {
+        _subSetConstructor = hook;
+    }
+    inline void setPropertyConstructorHook(PropertyConstructorHook const& hook) {
+        _subPropConstructor = hook;
+    }
+    inline void setTypeInfosHook(TypeInfosHook const& hook) {
+        _typeInfosHook = hook;
+    }
+
+    /*!
+     * \brief buildSubset build a subset to be used as subset for this set
+     * \param propName the property name of the set, if it already exist in the set, this function will return nullptr
+     * \param typeHint a type hint for the set, it is not used by the default implementation but might be used by the hook.
+     * \return a pointer to the set, or nullptr in case of error
+     *
+     * Using this function ensure the building hook is called if one is defined
+     * This function will insert the subset into this set, for simplicity, the user shall assume that the lifecycle of the
+     * returned subset will be managed by this property set.
+     */
+    PropertySet* buildSubset(std::string const& propName, std::string const& typeHint);
+    /*!
+     * \brief buildProperty build a property with a given name and type hint, using the hook if one is defined.
+     * \param propName the name (key) of the property
+     * \param typeHint a type hint which will be used to instance a property with proper storage.
+     * \return a pointer to the property, or nullptr in case of error.
+     */
+    GenericProperty* buildProperty(std::string const& propName, std::string const& typeHint);
 
     template <typename DT>
     inline ConnectionId connectChangeWatcher(Notifiable& target, DataNotifySlot<DT> const& slot) {
@@ -1105,6 +1141,11 @@ protected:
         return set->block(tail,count-1);
     }
 
+    SubSetConstructorHook _subSetConstructor;
+    PropertyConstructorHook _subPropConstructor;
+    TypeInfosHook _typeInfosHook;
+
+    std::set<DataStructureBlock*> _unmanagedBlocks;
     std::map<std::string, DataStructureBlock*> _data;
 
     std::forward_list<ChangeNotifyData> _changeSlots;
@@ -1294,7 +1335,43 @@ protected:
 
 };
 
-inline DataStructureBlock* buildTypedPropertyFromTypeDescr(DataStructureBlock* parent, std::string const& descr) {
+inline DataStructureBlock* buildTypedPropertyFromTypeDescr(DataStructureBlock* parent, std::string const& keyName, std::string const& descr) {
+
+    //check if we need to use the constructor  of the parent set
+    if (parent != nullptr and parent->dataStructureKind() == DataStructureBlock::Set) {
+
+        PropertySet* parent_set = static_cast<PropertySet*>(parent);
+
+        if (descr.size() >= 3) {
+            std::string prefix;
+            prefix.resize(3);
+            for (int i = 0; i < 3; i++) {
+                prefix[i] = descr[i];
+            }
+
+            if (prefix == "set") {
+                std::string suffix; //assume the type hint has shape "set::subhint"
+                suffix.resize(std::max<int>(0,static_cast<int>(descr.size())-5));
+
+                for (int i = 5; i < descr.size(); i++) {
+                    suffix[i-5] = descr[i];
+                }
+
+                PropertySet* set = parent_set->buildSubset(keyName, suffix);
+
+                if (set != nullptr) {
+                    return set;
+                }
+            }
+
+        }
+
+        GenericProperty* prop = parent_set->buildProperty(keyName, descr);
+
+        if (prop != nullptr) {
+            return prop;
+        }
+    }
 
     if (descr == "i8") {
         return new Property<int8_t>(parent);
@@ -1340,12 +1417,21 @@ struct ChangeRecord {
         None = 0,
         Set = 1,
         Insert = 2,
-        Remove = 3
+        Remove = 3,
+        Invalid = 4
     };
     DataStructureBlock::Url url; //the url the action took place at
     std::string index; //the element impacted (when editing a set or array)
     Action action; //the type of action
     std::string dataRep; //representation of the data
+
+    static inline ChangeRecord InvalidRecord() {
+        return ChangeRecord{.url = {}, .index = "", .action = Invalid, .dataRep = ""};
+    }
+
+    inline bool isValid() const {
+        return action != Invalid;
+    }
 
     static char actionToChar(Action act) {
         switch (act) {
@@ -1357,6 +1443,8 @@ struct ChangeRecord {
             return 'I';
         case Remove:
             return 'R';
+        case Invalid:
+            return '-';
         }
         return 'N';
     }
@@ -1372,7 +1460,7 @@ struct ChangeRecord {
         case 'R':
             return Remove;
         }
-        return None;
+        return Invalid;
     }
 
     template<typename OutStreamT>
@@ -1386,9 +1474,9 @@ struct ChangeRecord {
         }
         out << '\n';
         out << actionToChar(action) << '\n';
-        if (!dataRep.empty()) {
-            out << dataRep;
-        }
+        out << dataRep << '\n';
+
+        return out;
 
     }
     template<typename InStream>
@@ -1397,10 +1485,40 @@ struct ChangeRecord {
         std::string index;
         char action;
         std::string dataRep;
-        in >> urlStr;
-        in >> index;
-        in >> action;
-        in >> dataRep;
+
+        std::getline(in, urlStr);
+        if (!in.good()) {
+            in.clear();
+            return ChangeRecord::InvalidRecord();
+        }
+
+        std::getline(in, index);
+        if (!in.good()) {
+            in.clear();
+            return ChangeRecord::InvalidRecord();
+        }
+
+
+        std::string actionBuffer;
+        std::getline(in, actionBuffer);
+        if (!in.good()) {
+            in.clear();
+            return ChangeRecord::InvalidRecord();
+        }
+
+        if (actionBuffer.size() != 1) {
+            in.clear();
+            return ChangeRecord::InvalidRecord();
+        }
+
+        action = actionBuffer[0];
+
+        std::getline(in, dataRep);
+        if (!in.good()) {
+            in.clear();
+            return ChangeRecord::InvalidRecord();
+        }
+
         return ChangeRecord{PropertySet::urlDecode(urlStr), index, charToAction(action), dataRep};
     }
 
@@ -1419,8 +1537,16 @@ struct ChangeRecord {
             return applyInsert(block);
         case Remove:
             return applyRemove(block);
+        case Invalid:
+            return false;
         }
 
+        return false;
+
+    }
+
+    inline bool operator==(ChangeRecord const& other) const {
+        return url == other.url and index == other.index and action == other.action and dataRep == other.dataRep;
     }
 
 protected:
@@ -1488,7 +1614,7 @@ protected:
             return false;
         }
 
-        DataStructureBlock* newBlock = buildTypedPropertyFromTypeDescr(set, dataRep);
+        DataStructureBlock* newBlock = buildTypedPropertyFromTypeDescr(set, index, dataRep);
 
         if (newBlock == nullptr) {
             return false;

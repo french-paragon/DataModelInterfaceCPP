@@ -17,6 +17,10 @@
 #include "./property.h"
 #include "./changerecorder.h"
 
+#include "./test_internal/generictestdatastructure.h"
+
+#include <sstream>
+
 using namespace DataModelInterface;
 
 //few static asserts
@@ -377,5 +381,337 @@ TEST(DataModelInterface, SetChangesRecorder) {
     ASSERT_TRUE(initialReferenceSet->isSimilarTo(modifiableSet.get()));
     ASSERT_FALSE(finalReferenceSet->isSimilarTo(modifiableSet.get()));
 
+
+}
+
+TEST(DataModelInterface, ArbitraryDataTransfert) {
+
+    Internal::GenericTestDataStructure source;
+    Internal::GenericTestDataStructure target;
+
+    ASSERT_TRUE(source.checkIsEquivalent(target));
+
+    PropertySet* src_prop_set = source.getPropertySet();
+    PropertySet* dst_prop_set = target.getPropertySet();
+
+    ChangeRecorder changeRecorder(src_prop_set);
+    changeRecorder.setMaxChangesRecorded(10); //buffer should be large enough
+
+    ChangeRecorder::CallBack callBack = [dst_prop_set] (ChangeRecorder const* recorder,
+                                                       ChangeRecorder::ChangeRecordInfo const& changeRecordInfos) {
+        for (ChangeRecord const& changeRecord : changeRecordInfos.redo) {
+            changeRecord.apply(dst_prop_set);
+        }
+    };
+
+    changeRecorder.registerCallback(callBack);
+
+    std::string keySubBlock1 = "test";
+    Internal::SubDataBlock1* b1 = new Internal::SubDataBlock1(keySubBlock1);
+    source.insertDataBlock(keySubBlock1, b1);
+
+    b1->setIntProp(42);
+    b1->setStringProp("test");
+
+    Internal::SubDataBlock1* b1_inserted = dynamic_cast<Internal::SubDataBlock1*>(source.getDataBlock(keySubBlock1));
+
+    ASSERT_EQ(source.nDataBlocks(), 1);
+    ASSERT_EQ(b1, b1_inserted);
+    ASSERT_EQ(b1_inserted->getIntProp(), 42);
+    ASSERT_EQ(b1_inserted->getStringProp(), "test");
+
+    ASSERT_TRUE(source.checkIsEquivalent(target));
+
+    std::string keySubBlock2 = "test2";
+    Internal::SubDataBlock2* b2 = new Internal::SubDataBlock2(keySubBlock2);
+    source.insertDataBlock(keySubBlock2, b2);
+
+    std::string keySubBlock3 = "test3";
+    Internal::SubDataBlock2* b3 = new Internal::SubDataBlock2(keySubBlock3);
+    source.insertDataBlock(keySubBlock3, b3);
+
+    b2->setLongProp(69);
+    b3->setLongProp(3327);
+
+    std::string keySubSubBlock1 = "subtest1";
+    Internal::SubSubDataBlock* sb1 = new Internal::SubSubDataBlock(keySubSubBlock1);
+    b3->insertDataBlock(keySubSubBlock1, sb1);
+
+    sb1->setStringProp("subtest");
+    sb1->setUIntProp(101);
+
+    ASSERT_EQ(source.nDataBlocks(), 3);
+
+    Internal::SubDataBlock2* b2_inserted = dynamic_cast<Internal::SubDataBlock2*>(source.getDataBlock(keySubBlock2));
+    Internal::SubDataBlock2* b3_inserted = dynamic_cast<Internal::SubDataBlock2*>(source.getDataBlock(keySubBlock3));
+
+    ASSERT_EQ(b2, b2_inserted);
+    ASSERT_EQ(b3, b3_inserted);
+
+    Internal::SubSubDataBlock* sb1_inserted = b3_inserted->getSubBlock(keySubSubBlock1);
+
+    ASSERT_EQ(sb1, sb1_inserted);
+
+    ASSERT_EQ(b2_inserted->getFloatProp(), 69);
+    ASSERT_EQ(b3_inserted->getFloatProp(), 3327);
+
+    ASSERT_EQ(b2_inserted->nSubBlocks(), 0);
+    ASSERT_EQ(b3_inserted->nSubBlocks(), 1);
+
+
+    ASSERT_EQ(sb1->getUIntProp(), 101);
+    ASSERT_EQ(sb1->getStringProp(), "subtest");
+
+
+    ASSERT_TRUE(source.checkIsEquivalent(target));
+}
+
+TEST(DataModelInterface, ArbitraryDataSync) {
+
+    Internal::GenericTestDataStructure source1;
+    Internal::GenericTestDataStructure source2;
+    Internal::GenericTestDataStructure master;
+
+    ASSERT_TRUE(source1.checkIsEquivalent(master));
+    ASSERT_TRUE(source2.checkIsEquivalent(master));
+
+    using StreamTransfertT = std::stringstream;
+
+    StreamTransfertT test;
+
+    //run short test
+    ChangeRecord r1{.url = {"t"}, .index = "test", .action = ChangeRecord::Insert, .dataRep = "set"};
+    ChangeRecord r2{.url = {"t2"}, .index = "foo", .action = ChangeRecord::Set, .dataRep = "42"};
+    ChangeRecord r3{.url = {"r", "t"}, .index = "bar", .action = ChangeRecord::Remove, .dataRep = "string"};
+    ChangeRecord r4{.url = {"url", "multi"}, .index = "foo", .action = ChangeRecord::Set, .dataRep = ""};
+    ChangeRecord r5{.url = {"t2"}, .index = "foo", .action = ChangeRecord::Set, .dataRep = "string"};
+
+    r1.toStream(test);
+    r2.toStream(test);
+
+    ChangeRecord p1 = ChangeRecord::fromStream(test);
+    ChangeRecord p2 = ChangeRecord::fromStream(test);
+    ChangeRecord pInv = ChangeRecord::fromStream(test);
+
+    ASSERT_EQ(r1, p1);
+    ASSERT_EQ(r2, p2);
+    ASSERT_FALSE(pInv.isValid());
+
+    test.str(""); //clear the string
+    test.clear();//clear errors;
+
+    r3.toStream(test);
+    r3.toStream(test);
+    r4.toStream(test);
+    r5.toStream(test);
+
+    p1 = ChangeRecord::fromStream(test);
+    p2 = ChangeRecord::fromStream(test);
+    ChangeRecord p3 = ChangeRecord::fromStream(test);
+    ChangeRecord p4 = ChangeRecord::fromStream(test);
+    pInv = ChangeRecord::fromStream(test);
+
+    ASSERT_EQ(r3, p1);
+    ASSERT_EQ(r3, p2);
+    ASSERT_EQ(r4, p3);
+    ASSERT_EQ(r5, p4);
+    ASSERT_FALSE(pInv.isValid());
+
+    test.str(""); //clear the string
+    test.clear();//clear errors;
+
+    StreamTransfertT s1_up; //source1 publish its changes, master read them
+    StreamTransfertT s1_down; //master publish its changes there, and source1 read them
+
+    StreamTransfertT s2_up; //source2 publish its changes, master read them
+    StreamTransfertT s2_down; //master publish its changes there, and source2 read them
+
+
+    PropertySet* src1_prop_set = source1.getPropertySet();
+    PropertySet* src2_prop_set = source2.getPropertySet();
+    PropertySet* dst_prop_set = master.getPropertySet();
+
+
+    ChangeRecorder changeRecorderSource1(src1_prop_set);
+    changeRecorderSource1.setMaxChangesRecorded(10); //buffer should be large enough
+
+    ChangeRecorder changeRecorderSource2(src2_prop_set);
+    changeRecorderSource2.setMaxChangesRecorded(10); //buffer should be large enough
+
+    ChangeRecorder changeRecorderMaster(dst_prop_set);
+    changeRecorderMaster.setMaxChangesRecorded(10); //buffer should be large enough
+
+    ChangeRecorder::CallBack callBackCRS1 = [&s1_up] (ChangeRecorder const* recorder,
+                                                 ChangeRecorder::ChangeRecordInfo const& changeRecordInfos) {
+        for (ChangeRecord const& changeRecord : changeRecordInfos.redo) {
+            changeRecord.toStream(s1_up);
+        }
+    };
+
+    changeRecorderSource1.registerCallback(callBackCRS1);
+
+    ChangeRecorder::CallBack callBackCRS2 = [&s2_up] (ChangeRecorder const* recorder,
+                                                 ChangeRecorder::ChangeRecordInfo const& changeRecordInfos) {
+        for (ChangeRecord const& changeRecord : changeRecordInfos.redo) {
+            changeRecord.toStream(s2_up);
+        }
+    };
+
+    changeRecorderSource2.registerCallback(callBackCRS2);
+
+    ChangeRecorder::CallBack callBackMaster = [&s1_down, &s2_down] (ChangeRecorder const* recorder,
+                                                     ChangeRecorder::ChangeRecordInfo const& changeRecordInfos) {
+        for (ChangeRecord const& changeRecord : changeRecordInfos.redo) {
+            changeRecord.toStream(s1_down);
+            changeRecord.toStream(s2_down);
+        }
+    };
+
+    changeRecorderMaster.registerCallback(callBackMaster);
+
+    auto pullDataToMaster = [&s1_up, &s2_up, dst_prop_set] () {
+        for (StreamTransfertT* streamPtr : {&s1_up, &s2_up}) {
+            StreamTransfertT& stream = *streamPtr;
+            do {
+                ChangeRecord cr = ChangeRecord::fromStream(stream);
+
+                if (!cr.isValid()) {
+                    break;
+                }
+
+                cr.apply(dst_prop_set);
+            } while (true);
+        }
+    };
+
+    auto pullDataToSource1 = [&s1_down, src1_prop_set] () {
+        do {
+            ChangeRecord cr = ChangeRecord::fromStream(s1_down);
+                if (!cr.isValid()) {
+                break;
+            }
+
+            cr.apply(src1_prop_set);
+        } while (true);
+    };
+
+    auto pullDataToSource2 = [&s2_down, src2_prop_set] () {
+        do {
+            ChangeRecord cr = ChangeRecord::fromStream(s2_down);
+            if (!cr.isValid()) {
+                break;
+            }
+
+            cr.apply(src2_prop_set);
+        } while (true);
+    };
+
+
+    std::string keySubBlock1 = "test";
+    Internal::SubDataBlock1* b1 = new Internal::SubDataBlock1(keySubBlock1);
+    source1.insertDataBlock(keySubBlock1, b1);
+
+    b1->setIntProp(42);
+    b1->setStringProp("test");
+
+    std::string keySubBlock2 = "test2";
+    Internal::SubDataBlock2* b2 = new Internal::SubDataBlock2(keySubBlock2);
+    source2.insertDataBlock(keySubBlock2, b2);
+
+    std::string keySubBlock3 = "test3";
+    Internal::SubDataBlock2* b3 = new Internal::SubDataBlock2(keySubBlock3);
+    source2.insertDataBlock(keySubBlock3, b3);
+
+    b2->setLongProp(69);
+    b3->setLongProp(3327);
+
+    ASSERT_FALSE(source1.checkIsEquivalent(source2));
+
+    pullDataToMaster();
+    pullDataToSource1();
+    pullDataToSource2();
+    s1_up.clear();
+    s1_up.str("");
+    s2_up.clear();
+    s2_up.str("");
+    s1_down.clear();
+    s1_down.str("");
+    s2_down.clear();
+    s2_down.str("");
+
+    ASSERT_EQ(source1.nDataBlocks(), 3);
+    ASSERT_EQ(source2.nDataBlocks(), 3);
+    ASSERT_EQ(master.nDataBlocks(), 3);
+
+    Internal::SubDataBlock1* b1_inserted = dynamic_cast<Internal::SubDataBlock1*>(source2.getDataBlock(keySubBlock1));
+    Internal::SubDataBlock2* b2_inserted = dynamic_cast<Internal::SubDataBlock2*>(source1.getDataBlock(keySubBlock2));
+    Internal::SubDataBlock2* b3_inserted = dynamic_cast<Internal::SubDataBlock2*>(source1.getDataBlock(keySubBlock3));
+
+    ASSERT_TRUE(b1_inserted != nullptr);
+    ASSERT_TRUE(b2_inserted != nullptr);
+    ASSERT_TRUE(b3_inserted != nullptr);
+
+    ASSERT_EQ(b1->getIntProp(), 42);
+    ASSERT_EQ(b1->getStringProp(), "test");
+    ASSERT_EQ(b2->getFloatProp(), 69);
+    ASSERT_EQ(b3->getFloatProp(), 3327);
+
+    ASSERT_EQ(b2_inserted->getFloatProp(), 69);
+    ASSERT_EQ(b3_inserted->getFloatProp(), 3327);
+
+    ASSERT_TRUE(source1.checkIsEquivalent(source2));
+
+
+    std::string keySubSubBlock1 = "subtest1";
+    Internal::SubSubDataBlock* sb1 = new Internal::SubSubDataBlock(keySubSubBlock1);
+    b3_inserted->insertDataBlock(keySubSubBlock1, sb1);
+
+    sb1->setStringProp("subtest");
+    sb1->setUIntProp(101);
+
+    pullDataToMaster();
+    pullDataToSource1();
+    pullDataToSource2();
+    s1_up.clear();
+    s1_up.str("");
+    s2_up.clear();
+    s2_up.str("");
+    s1_down.clear();
+    s1_down.str("");
+    s2_down.clear();
+    s2_down.str("");
+
+    ASSERT_EQ(b3->nSubBlocks(), 1);
+    ASSERT_EQ(b3_inserted->nSubBlocks(), 1);
+
+    Internal::SubSubDataBlock* sb1_inserted = b3->getSubBlock(keySubSubBlock1);
+
+    ASSERT_TRUE(sb1_inserted != nullptr);
+
+    ASSERT_EQ(sb1_inserted->getUIntProp(), 101);
+    ASSERT_EQ(sb1_inserted->getStringProp(), "subtest");
+
+    ASSERT_TRUE(source1.checkIsEquivalent(source2));
+
+    source2.removeDataBlock(keySubBlock1);
+    source1.removeDataBlock(keySubBlock2);
+
+    pullDataToMaster();
+    pullDataToSource1();
+    pullDataToSource2();
+    s1_up.clear();
+    s1_up.str("");
+    s2_up.clear();
+    s2_up.str("");
+    s1_down.clear();
+    s1_down.str("");
+    s2_down.clear();
+    s2_down.str("");
+
+    ASSERT_EQ(source1.nDataBlocks(), 1);
+    ASSERT_EQ(source2.nDataBlocks(), 1);
+    ASSERT_EQ(master.nDataBlocks(), 1);
+
+    ASSERT_TRUE(source1.checkIsEquivalent(source2));
 
 }
