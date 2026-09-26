@@ -245,6 +245,95 @@ bool PropertySet::isSimilarTo(PropertySet* other) {
 
 }
 
+std::string PropertySet::urlEncode(Url const& url) {
+
+    if (url.empty()) {
+        return "";
+    }
+
+    std::string encoded;
+
+    int encoded_size = 0;
+    for (std::string const& s : url) {
+        int nEscapedChars = 0;
+        for (char c : s) {
+            if (c == urlSep or c == urlEncodeEscapeChar) {
+                nEscapedChars++;
+            }
+        }
+        encoded_size += s.size() + nEscapedChars;
+    }
+    encoded_size += url.size()-1;
+
+    encoded.reserve(encoded_size);
+
+    for (int i = 0; i < url.size(); i++) {
+        if (i > 0) {
+            encoded += urlSep;
+        }
+        for (char c : url[i]) {
+            if (c == urlSep or c == urlEncodeEscapeChar) {
+                encoded += urlEncodeEscapeChar;
+            }
+            encoded += c;
+        }
+    }
+
+    return encoded;
+
+}
+
+PropertySet::Url PropertySet::urlDecode(std::string const& str) {
+
+    int nEntries = 1;
+
+    for (int i = 0; i < str.size(); i++) {
+        char c = str[i];
+
+        if (c == urlEncodeEscapeChar) {
+            i++;
+            continue;
+        }
+
+        if (c == urlSep) {
+            nEntries++;
+        }
+    }
+
+    PropertySet::Url ret;
+    ret.reserve(nEntries);
+
+    std::string currentEntry;
+
+    for (int i = 0; i < str.size(); i++) {
+        char c = str[i];
+
+        if (c == urlEncodeEscapeChar) {
+            i++;
+            if (i >= str.size()) {
+                break;
+            }
+            currentEntry += str[i];
+            continue;
+        }
+
+        if (c == urlSep) {
+            ret.push_back(currentEntry);
+            currentEntry.clear();
+            continue;
+        }
+
+        currentEntry += str[i];
+    }
+
+    if (!currentEntry.empty()) {
+        ret.push_back(currentEntry);
+    }
+
+    return ret;
+
+}
+
 class ProxyUnsyncedGenericProperty : public GenericProperty {
 public:
     ProxyUnsyncedGenericProperty(GenericProperty* proxied, DataStructureBlock* parent = nullptr) :

@@ -125,6 +125,30 @@ TEST(DataModelInterface, SetBuilding) {
     ASSERT_TRUE(subprop2DeleteWatch);
 }
 
+TEST(DataModelInterface, SetUrlEncodingDecoding) {
+    PropertySet::Url url1{"test", "1", "prop"}; //simple
+    PropertySet::Url url2{"42", "33", "27"}; //numbers only
+    PropertySet::Url url3{"\\p1", "\\sp2/:32", "/ord8"}; //more complex
+    PropertySet::Url url4{"/\\%::\\", "", "./&\\"}; //a bit crazy
+
+    std::vector<PropertySet::Url> testData = {url1, url2, url3, url4};
+
+    for (PropertySet::Url const& url : testData) {
+        std::string encoded = PropertySet::urlEncode(url);
+        ASSERT_FALSE(encoded.empty());
+
+        PropertySet::Url decoded = PropertySet::urlDecode(encoded);
+
+        ASSERT_EQ(decoded, url);
+    }
+
+    std::string encodedEmpty = PropertySet::urlEncode({});
+    ASSERT_TRUE(encodedEmpty.empty());
+
+    PropertySet::Url decodedEmpty = PropertySet::urlDecode("");
+    ASSERT_TRUE(decodedEmpty.empty());
+}
+
 TEST(DataModelInterface, SignalsInSets) {
 
     std::unique_ptr<PropertySet> basicSet = std::make_unique<PropertySet>();

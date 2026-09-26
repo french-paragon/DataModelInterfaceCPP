@@ -673,6 +673,9 @@ public:
 
     using ConnectionId = uintptr_t;
 
+    static constexpr char urlSep = '/';
+    static constexpr char urlEncodeEscapeChar = '\\';
+
 protected:
 
     struct NotifyData {
