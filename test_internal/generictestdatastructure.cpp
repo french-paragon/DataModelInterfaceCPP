@@ -5,7 +5,11 @@
 namespace DataModelInterface {
 namespace Internal {
 
-SubSubDataBlock::SubSubDataBlock(std::string const& ref) : _ref(ref) {
+SubSubDataBlock::SubSubDataBlock(std::string const& ref) :
+    _ref(ref),
+    _uint_prop(0),
+    _string_prop("")
+{
     _internalPropertySet = nullptr;
 }
 SubSubDataBlock::~SubSubDataBlock() {
@@ -96,7 +100,11 @@ SubDataBlock::~SubDataBlock() {
     //no deleting _internalPropertySet, it is assumed it will be done by the managing property set
 }
 
-SubDataBlock1::SubDataBlock1(std::string const& ref) : SubDataBlock(ref) {
+SubDataBlock1::SubDataBlock1(std::string const& ref) :
+    SubDataBlock(ref),
+    _int_prop(0),
+    _string_prop("")
+{
 
 }
 
@@ -181,7 +189,9 @@ void SubDataBlock1::setStringProp(std::string const& val) {
 }
 
 SubDataBlock2::SubDataBlock2(std::string const& ref) :
-    SubDataBlock(ref) {
+    SubDataBlock(ref),
+    _long_prop(0)
+{
 
 }
 SubDataBlock2::~SubDataBlock2() {
