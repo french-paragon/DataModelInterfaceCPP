@@ -493,6 +493,11 @@ TEST(DataModelInterface, ArbitraryDataSync) {
     ChangeRecord p2 = ChangeRecord::fromStream(test);
     ChangeRecord pInv = ChangeRecord::fromStream(test);
 
+    std::string str = test.str();
+    int pos = test.tellg();
+
+    ASSERT_EQ(pos, str.size());
+
     ASSERT_EQ(r1, p1);
     ASSERT_EQ(r2, p2);
     ASSERT_FALSE(pInv.isValid());
@@ -572,6 +577,10 @@ TEST(DataModelInterface, ArbitraryDataSync) {
     auto pullDataToMaster = [&s1_up, &s2_up, dst_prop_set] () {
         for (StreamTransfertT* streamPtr : {&s1_up, &s2_up}) {
             StreamTransfertT& stream = *streamPtr;
+
+            std::vector<ChangeRecord> changes;
+            changes.reserve(10); //have a reasonable reserve to start
+
             do {
                 ChangeRecord cr = ChangeRecord::fromStream(stream);
 
@@ -579,31 +588,95 @@ TEST(DataModelInterface, ArbitraryDataSync) {
                     break;
                 }
 
-                cr.apply(dst_prop_set);
+                changes.push_back(cr);
             } while (true);
+
+            for (int i = 0; i < changes.size(); i++) {
+
+                bool isOverriden = false;
+
+                for (int j = i+1; j < changes.size(); j++) {
+                    if (changes[j].doesOverride(changes[i])) {
+                        isOverriden = true;
+                        break;
+                    }
+                }
+
+                if (isOverriden) {
+                    continue;
+                }
+
+                changes[i].apply(dst_prop_set);
+            }
         }
     };
 
     auto pullDataToSource1 = [&s1_down, src1_prop_set] () {
+
+        std::vector<ChangeRecord> changes;
+        changes.reserve(10); //have a reasonable reserve to start
+
         do {
             ChangeRecord cr = ChangeRecord::fromStream(s1_down);
-                if (!cr.isValid()) {
-                break;
-            }
 
-            cr.apply(src1_prop_set);
-        } while (true);
-    };
-
-    auto pullDataToSource2 = [&s2_down, src2_prop_set] () {
-        do {
-            ChangeRecord cr = ChangeRecord::fromStream(s2_down);
             if (!cr.isValid()) {
                 break;
             }
 
-            cr.apply(src2_prop_set);
+            changes.push_back(cr);
         } while (true);
+
+        for (int i = 0; i < changes.size(); i++) {
+
+            bool isOverriden = false;
+
+            for (int j = i+1; j < changes.size(); j++) {
+                if (changes[j].doesOverride(changes[i])) {
+                    isOverriden = true;
+                    break;
+                }
+            }
+
+            if (isOverriden) {
+                continue;
+            }
+
+            changes[i].apply(src1_prop_set);
+        }
+    };
+
+    auto pullDataToSource2 = [&s2_down, src2_prop_set] () {
+
+        std::vector<ChangeRecord> changes;
+        changes.reserve(10); //have a reasonable reserve to start
+
+        do {
+            ChangeRecord cr = ChangeRecord::fromStream(s2_down);
+
+            if (!cr.isValid()) {
+                break;
+            }
+
+            changes.push_back(cr);
+        } while (true);
+
+        for (int i = 0; i < changes.size(); i++) {
+
+            bool isOverriden = false;
+
+            for (int j = i+1; j < changes.size(); j++) {
+                if (changes[j].doesOverride(changes[i])) {
+                    isOverriden = true;
+                    break;
+                }
+            }
+
+            if (isOverriden) {
+                continue;
+            }
+
+            changes[i].apply(src2_prop_set);
+        }
     };
 
 
@@ -630,6 +703,22 @@ TEST(DataModelInterface, ArbitraryDataSync) {
     pullDataToMaster();
     pullDataToSource1();
     pullDataToSource2();
+    pullDataToMaster();
+    pullDataToSource1();
+    pullDataToSource2();
+
+    str = s1_up.str(); pos = s1_up.tellg();
+    ASSERT_EQ(pos, str.size());
+
+    str = s2_up.str(); pos = s2_up.tellg();
+    ASSERT_EQ(pos, str.size());
+
+    str = s1_up.str(); pos = s1_up.tellg();
+    ASSERT_EQ(pos, str.size());
+
+    str = s2_down.str(); pos = s2_down.tellg();
+    ASSERT_EQ(pos, str.size());
+
     s1_up.clear();
     s1_up.str("");
     s2_up.clear();
@@ -672,6 +761,22 @@ TEST(DataModelInterface, ArbitraryDataSync) {
     pullDataToMaster();
     pullDataToSource1();
     pullDataToSource2();
+    pullDataToMaster();
+    pullDataToSource1();
+    pullDataToSource2();
+
+    str = s1_up.str(); pos = s1_up.tellg();
+    ASSERT_EQ(pos, str.size());
+
+    str = s2_up.str(); pos = s2_up.tellg();
+    ASSERT_EQ(pos, str.size());
+
+    str = s1_up.str(); pos = s1_up.tellg();
+    ASSERT_EQ(pos, str.size());
+
+    str = s2_down.str(); pos = s2_down.tellg();
+    ASSERT_EQ(pos, str.size());
+
     s1_up.clear();
     s1_up.str("");
     s2_up.clear();
@@ -699,6 +804,22 @@ TEST(DataModelInterface, ArbitraryDataSync) {
     pullDataToMaster();
     pullDataToSource1();
     pullDataToSource2();
+    pullDataToMaster();
+    pullDataToSource1();
+    pullDataToSource2();
+
+    str = s1_up.str(); pos = s1_up.tellg();
+    ASSERT_EQ(pos, str.size());
+
+    str = s2_up.str(); pos = s2_up.tellg();
+    ASSERT_EQ(pos, str.size());
+
+    str = s1_up.str(); pos = s1_up.tellg();
+    ASSERT_EQ(pos, str.size());
+
+    str = s2_down.str(); pos = s2_down.tellg();
+    ASSERT_EQ(pos, str.size());
+
     s1_up.clear();
     s1_up.str("");
     s2_up.clear();

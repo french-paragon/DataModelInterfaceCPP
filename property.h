@@ -1549,6 +1549,61 @@ struct ChangeRecord {
         return url == other.url and index == other.index and action == other.action and dataRep == other.dataRep;
     }
 
+    /*!
+     * \brief doesOverride indicate if this is applied after other, it would be just as if other was never applied.
+     * \param other the other change record, which is supposed to be applied before this.
+     * \return true if this does override other, false otherwise.
+     */
+    inline bool doesOverride(ChangeRecord const& other) const {
+
+        if (action == None) {
+            if (other.action == None) {
+                return true;
+            }
+        }
+
+        if (action == Set) {
+            if (other.action == Set) {
+                if (other.url == url) {
+                    return true;
+                }
+            }
+        }
+
+        if (action == Remove) {
+
+            DataStructureBlock::Url thisExpandedUrl = url;
+            thisExpandedUrl.push_back(index);
+
+            DataStructureBlock::Url otherExpandedUrl = other.url;
+            otherExpandedUrl.push_back(other.index);
+
+            bool otherIsSubOrEqual = true;
+
+            if (otherExpandedUrl.size() < thisExpandedUrl.size()) {
+                otherIsSubOrEqual = false;
+            } else {
+                for (int i = 0; i < thisExpandedUrl.size(); i++) {
+                    if (thisExpandedUrl[i] != otherExpandedUrl[i]) {
+                        otherIsSubOrEqual = false;
+                    }
+                }
+            }
+
+            if (other.action == Remove or other.action == Set or other.action == Insert) {
+
+                if (otherIsSubOrEqual) {
+                    return true;
+                }
+
+            }
+        }
+
+
+        return false;
+
+    }
+
 protected:
 
     inline bool applySet(DataStructureBlock* block) const {
