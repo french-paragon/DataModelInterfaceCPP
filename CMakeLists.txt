@@ -9,6 +9,8 @@ set(LIB_NAME DataModelInterface)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(CMAKE_DEBUG_POSTFIX d)
+
 option(BUILD_TEST "Build the test suits for the library" OFF)
 
 set(DATA_MODEL_INTERFACE_NAME "datamodelinterface")
