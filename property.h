@@ -30,7 +30,7 @@ namespace DataModelInterface {
 class PropertySet;
 class GenericProperty;
 
-using GenericDatum = std::variant<int8_t,uint8_t,int16_t,uint16_t,int32_t,uint32_t,int64_t,uint64_t,float,double,std::string>;
+using GenericDatum = std::variant<bool,int8_t,uint8_t,int16_t,uint16_t,int32_t,uint32_t,int64_t,uint64_t,float,double,std::string>;
 
 
 namespace Internal {
@@ -45,6 +45,9 @@ struct contain_type<T, std::variant<Ts...>>
 
 template<typename T>
 std::string typeDescr() {
+    if constexpr (std::is_same_v<T, bool>) {
+        return "b";
+    }
     if constexpr (std::is_same_v<T, int8_t>) {
         return "i8";
     }
@@ -565,6 +568,9 @@ public:
     }
 
     virtual std::string typeDescr() const override {
+        if constexpr (std::is_same_v<bool,DataStorageType>) {
+            return "b";
+        }
         if constexpr (std::is_same_v<int8_t,DataStorageType>) {
             return "i8";
         }
@@ -1373,6 +1379,9 @@ inline DataStructureBlock* buildTypedPropertyFromTypeDescr(DataStructureBlock* p
         }
     }
 
+    if (descr == "b") {
+        return new Property<bool>(parent);
+    }
     if (descr == "i8") {
         return new Property<int8_t>(parent);
     }

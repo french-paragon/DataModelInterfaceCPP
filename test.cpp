@@ -33,6 +33,7 @@ TEST(DataModelInterface, SetBuilding) {
 
     std::string testDataStr = "test";
     int32_t testDataInt = 42;
+    bool testDataBool = true;
 
     std::string prop1Name = "prop1";
     std::string prop1Data = "toto";
@@ -121,12 +122,34 @@ TEST(DataModelInterface, SetBuilding) {
     GenericProperty* subprop2Recovered = static_cast<GenericProperty*>(block);
     ASSERT_EQ(std::get<int32_t>(subprop2Recovered->data()), subprop2Data);
 
+    std::string subprop3Name = "sprop3";
+    bool subprop3Data = false;
+    Property<bool>* subprop3 = new Property<bool>(subset);
+    subprop3->set(subprop3Data);
+
+    bool subprop3DeleteWatch = false;
+    ClearNotifySlotWatcher subprop3Watcher([&subprop3DeleteWatch] () {
+        subprop3DeleteWatch = true;
+    });
+    subprop3->connectClearWatcher(&subprop3Watcher);
+
+    subset->addBlock(subprop3Name, subprop3);
+
+    block = basicSet->block({subset1Name, subprop3Name});
+
+    ASSERT_TRUE(block->dataStructureKind() == DataStructureBlock::Property);
+    ASSERT_EQ(block, static_cast<DataStructureBlock*>(subprop3));
+
+    GenericProperty* subprop3Recovered = static_cast<GenericProperty*>(block);
+    ASSERT_EQ(std::get<bool>(subprop3Recovered->data()), subprop3Data);
+
     delete basicSet;
 
     ASSERT_TRUE(prop1DeleteWatch);
     ASSERT_TRUE(subset1DeleteWatch);
     ASSERT_TRUE(subprop1DeleteWatch);
     ASSERT_TRUE(subprop2DeleteWatch);
+    ASSERT_TRUE(subprop3DeleteWatch);
 }
 
 TEST(DataModelInterface, SetUrlEncodingDecoding) {
