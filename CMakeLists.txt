@@ -26,13 +26,14 @@ set(CMAKE_INSTALL_INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR}/${LIB_NAME})
 #make the status optional header available when built as a module
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-add_library(datamodelinterface)
+add_library(datamodelinterface SHARED)
 
 add_library(datamodelinterface::datamodelinterface ALIAS datamodelinterface)
 
 target_sources(datamodelinterface PRIVATE
     property.h property.cpp
-    changerecorder.h changerecorder.cpp)
+    changerecorder.h changerecorder.cpp
+    synchronization.h)
 
 target_include_directories(
           datamodelinterface

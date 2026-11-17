@@ -16,6 +16,7 @@
 
 #include "./property.h"
 #include "./changerecorder.h"
+#include "./synchronization.h"
 
 #include "./test_internal/generictestdatastructure.h"
 
@@ -569,23 +570,8 @@ TEST(DataModelInterface, ArbitraryDataSync) {
     ChangeRecorder changeRecorderMaster(dst_prop_set);
     changeRecorderMaster.setMaxChangesRecorded(10); //buffer should be large enough
 
-    ChangeRecorder::CallBack callBackCRS1 = [&s1_up] (ChangeRecorder const* recorder,
-                                                 ChangeRecorder::ChangeRecordInfo const& changeRecordInfos) {
-        for (ChangeRecord const& changeRecord : changeRecordInfos.redo) {
-            changeRecord.toStream(s1_up);
-        }
-    };
-
-    changeRecorderSource1.registerCallback(callBackCRS1);
-
-    ChangeRecorder::CallBack callBackCRS2 = [&s2_up] (ChangeRecorder const* recorder,
-                                                 ChangeRecorder::ChangeRecordInfo const& changeRecordInfos) {
-        for (ChangeRecord const& changeRecord : changeRecordInfos.redo) {
-            changeRecord.toStream(s2_up);
-        }
-    };
-
-    changeRecorderSource2.registerCallback(callBackCRS2);
+    connectChangeWatcherToStream(s1_up, changeRecorderSource1);
+    connectChangeWatcherToStream(s2_up, changeRecorderSource2);
 
     ChangeRecorder::CallBack callBackMaster = [&s1_down, &s2_down] (ChangeRecorder const* recorder,
                                                      ChangeRecorder::ChangeRecordInfo const& changeRecordInfos) {
@@ -636,6 +622,8 @@ TEST(DataModelInterface, ArbitraryDataSync) {
 
     auto pullDataToSource1 = [&s1_down, src1_prop_set] () {
 
+        pullRemoteChangesToPropertySet(s1_down, src1_prop_set);
+        return;
         std::vector<ChangeRecord> changes;
         changes.reserve(10); //have a reasonable reserve to start
 
