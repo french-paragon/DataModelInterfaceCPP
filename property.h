@@ -24,6 +24,7 @@
 #include <sstream>
 #include <map>
 #include <set>
+#include <cmath>
 
 namespace DataModelInterface {
 
@@ -297,7 +298,18 @@ public:
     inline static std::string datumToString(GenericDatum const& datum) {
         return std::visit([] (auto d) {
             std::stringstream stream;
-            stream << d;
+            if constexpr (std::is_floating_point_v<std::remove_reference_t<decltype(d)>>) {
+                switch (std::fpclassify(d)) {
+                case FP_SUBNORMAL:
+                case FP_ZERO:
+                    stream << "0.0";
+                    break;
+                default:
+                    stream << d;
+                }
+            } else {
+                stream << d;
+            }
             return stream.str();}, datum);
 
     }
@@ -362,7 +374,18 @@ public:
                         slot(d);
                     } else if constexpr (std::is_same_v<OutT, std::string>) {
                         std::stringstream stream;
-                        stream << d;
+                        if constexpr (std::is_floating_point_v<std::remove_reference_t<decltype(d)>>) {
+                            switch (std::fpclassify(d)) {
+                            case FP_SUBNORMAL:
+                            case FP_ZERO:
+                                stream << "0.0";
+                                break;
+                            default:
+                                stream << d;
+                            }
+                        } else {
+                            stream << d;
+                        }
                         slot(stream.str());
                     }
 
@@ -400,7 +423,18 @@ public:
                         slot(d);
                     } else if constexpr (std::is_same_v<OutT, std::string>) {
                         std::stringstream stream;
-                        stream << d;
+                        if constexpr (std::is_floating_point_v<std::remove_reference_t<decltype(d)>>) {
+                            switch (std::fpclassify(d)) {
+                            case FP_SUBNORMAL:
+                            case FP_ZERO:
+                                stream << "0.0";
+                                break;
+                            default:
+                                stream << d;
+                            }
+                        } else {
+                            stream << d;
+                        }
                         slot(stream.str());
                     }
 
@@ -441,7 +475,18 @@ public:
                             return d;
                         } else if constexpr (std::is_same_v<OutT, std::string>) {
                             std::stringstream stream;
-                            stream << d;
+                            if constexpr (std::is_floating_point_v<std::remove_reference_t<decltype(d)>>) {
+                                switch (std::fpclassify(d)) {
+                                case FP_SUBNORMAL:
+                                case FP_ZERO:
+                                    stream << "0.0";
+                                    break;
+                                default:
+                                    stream << d;
+                                }
+                            } else {
+                                stream << d;
+                            }
                             return stream.str();
                         }
                     }, oldData);
@@ -493,7 +538,18 @@ public:
                             return d;
                         } else if constexpr (std::is_same_v<OutT, std::string>) {
                             std::stringstream stream;
-                            stream << d;
+                            if constexpr (std::is_floating_point_v<std::remove_reference_t<decltype(d)>>) {
+                                switch (std::fpclassify(d)) {
+                                case FP_SUBNORMAL:
+                                case FP_ZERO:
+                                    stream << "0.0";
+                                    break;
+                                default:
+                                    stream << d;
+                                }
+                            } else {
+                                stream << d;
+                            }
                             return stream.str();
                         }
                     }, oldData);
@@ -641,18 +697,36 @@ public:
                         } else {
                             set(std::stoi(d));
                         }
-                    } else if (std::is_floating_point_v<OutT>) {
-                        if constexpr (sizeof(OutT) >= sizeof(long double)) {
-                            set(std::stold(d));
-                        } else if constexpr (sizeof(OutT) >= sizeof(double)) {
-                            set(std::stod(d));
-                        } else {
-                            set(std::stof(d));
+                    } else if constexpr (std::is_floating_point_v<OutT>) {
+                        OutT val;
+                        try {
+                            if constexpr (sizeof(OutT) >= sizeof(long double)) {
+                                val = std::stold(d);
+                            } else if constexpr (sizeof(OutT) >= sizeof(double)) {
+                                val = std::stod(d);
+                            } else {
+                                val = std::stof(d);
+                            }
+                        } catch (std::exception & e) {
+                            val = std::nanf("");
                         }
+
+                        set(val);
                     }
                 } else if constexpr (std::is_convertible_v<std::string, OutT>) {
                     std::stringstream stream;
-                    stream << d;
+                    if (std::is_floating_point_v<InT>) {
+                        switch (std::fpclassify(d)) {
+                        case FP_SUBNORMAL:
+                        case FP_ZERO:
+                            stream << "0.0";
+                            break;
+                        default:
+                            stream << d;
+                        }
+                    } else {
+                        stream << d;
+                    }
                     set(stream.str());
                 }
             }
