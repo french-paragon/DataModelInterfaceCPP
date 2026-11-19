@@ -87,6 +87,9 @@ void GenericProperty::notify(const GenericDatum &oldData) {
 
 PropertySet::~PropertySet() {
     for (auto&[key, val] : _data) {
+        if (val->isExternallyManaged()) {
+            continue;
+        }
         if (_unmanagedBlocks.count(val) > 0) {
             continue; //we do not manage that block
         }
@@ -129,7 +132,7 @@ void PropertySet::clearBlock(std::string const& name, bool deleteBlock) {
         DataStructureBlock* block = _data[name];
         notifyClear(name);
         if (deleteBlock) {
-            if (_unmanagedBlocks.count(block) == 0) {
+            if (_unmanagedBlocks.count(block) == 0 and ! block->isExternallyManaged()) {
                 delete block; //delete block, but only if we are managing it
             }
         }

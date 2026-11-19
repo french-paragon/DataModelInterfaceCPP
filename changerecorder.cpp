@@ -104,6 +104,9 @@ ChangeRecorder::~ChangeRecorder() {
     for (CallBack* callBack : _callBacks) {
         delete callBack;
     }
+    if (_target != nullptr) {
+        _target->disconnectClearWatcher(&_clearWatcher);
+    }
 }
 
 uintptr_t ChangeRecorder::registerCallback(CallBack const& callback) {

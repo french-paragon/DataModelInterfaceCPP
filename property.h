@@ -228,9 +228,10 @@ public:
         Set = 1
     };
 
-    inline DataStructureBlock(DataStructureBlock* parent = nullptr) :
+    inline DataStructureBlock(DataStructureBlock* parent = nullptr, bool externallyManaged = false) :
         ChangeTracker(parent),
-        _parent(parent)
+        _parent(parent),
+        _externaly_managed(externallyManaged)
     {
 
     }
@@ -269,12 +270,21 @@ public:
         _parent = parent;
     }
 
+    /*!
+     * \brief isExternallyManaged indicate that the block will be deleted by something else, and no libdataurl memory management handler should delete it.
+     * \return true if the block is externally managed, false otherwise.
+     */
+    inline bool isExternallyManaged() const {
+        return _externaly_managed;
+    }
+
 protected:
 
     inline void setId(std::string const& id) {
         _id = id;
     }
     std::string _id;
+    bool _externaly_managed;
 
 private:
     DataStructureBlock* _parent;
@@ -337,8 +347,8 @@ protected:
 
 public:
 
-    inline GenericProperty(DataStructureBlock* parent) :
-        DataStructureBlock(parent)
+    inline GenericProperty(DataStructureBlock* parent, bool externallyManaged = false) :
+        DataStructureBlock(parent, externallyManaged)
     {
 
     }
@@ -617,8 +627,9 @@ public:
     using DataType = T;
     using DataStorageType = typename StorageType<DataType>::Type;
 
-    Property(DataStructureBlock* parent) :
-        GenericProperty(parent)
+    Property(DataStructureBlock* parent, bool externallyManaged = false) :
+        GenericProperty(parent, externallyManaged),
+        _data()
     {
 
     }
@@ -804,8 +815,8 @@ protected:
     };
 public:
 
-    PropertySet(DataStructureBlock* parent = nullptr):
-        DataStructureBlock(parent)
+    PropertySet(DataStructureBlock* parent = nullptr, bool externallyManaged = false):
+        DataStructureBlock(parent, externallyManaged)
     {
 
     }
